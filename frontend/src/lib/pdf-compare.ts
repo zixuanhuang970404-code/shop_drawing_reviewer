@@ -95,17 +95,29 @@ async function loadOpenCv() {
     default?: unknown;
     "module.exports"?: unknown;
   };
-  const candidates = [module.default, module["module.exports"], module];
+  // OpenCV exports a `then` property on its module namespace. Passing that
+  // namespace to Promise.resolve invokes it with an incompatible receiver.
+  // Inspect initialized runtimes before awaiting genuine initialization promises.
+  const candidates: unknown[] = [module.default, module["module.exports"], module];
 
   for (const candidate of candidates) {
-    const runtime: unknown = await Promise.resolve(candidate);
-    if (
-      typeof runtime === "object" &&
-      runtime !== null &&
-      "Mat" in runtime &&
-      "imread" in runtime
-    ) {
-      return runtime as CV;
+    if (candidate && typeof candidate === "object" &&
+        "Mat" in candidate && "imread" in candidate) {
+      return candidate as CV;
+    }
+
+    // Do not assimilate the ESM namespace as a thenable.
+    if (candidate === module || !candidate ||
+        (typeof candidate !== "object" && typeof candidate !== "function")) {
+      continue;
+    }
+
+    if ("then" in candidate && typeof candidate.then === "function") {
+      const runtime: unknown = await (candidate as PromiseLike<unknown>);
+      if (runtime && typeof runtime === "object" &&
+          "Mat" in runtime && "imread" in runtime) {
+        return runtime as CV;
+      }
     }
   }
 
