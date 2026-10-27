@@ -91,36 +91,15 @@ async function renderFirstPage(file: File): Promise<RenderedPage> {
 }
 
 async function loadOpenCv() {
-  const module = (await import("@techstark/opencv-js")) as {
-    default?: unknown;
-    "module.exports"?: unknown;
-  };
-  // OpenCV exports a `then` property on its module namespace. Passing that
-  // namespace to Promise.resolve invokes it with an incompatible receiver.
-  // Inspect initialized runtimes before awaiting genuine initialization promises.
-  const candidates: unknown[] = [module.default, module["module.exports"], module];
-
-  for (const candidate of candidates) {
-    if (candidate && typeof candidate === "object" &&
-        "Mat" in candidate && "imread" in candidate) {
-      return candidate as CV;
-    }
-
-    // Do not assimilate the ESM namespace as a thenable.
-    if (candidate === module || !candidate ||
-        (typeof candidate !== "object" && typeof candidate !== "function")) {
-      continue;
-    }
-
-    if ("then" in candidate && typeof candidate.then === "function") {
-      const runtime: unknown = await (candidate as PromiseLike<unknown>);
-      if (runtime && typeof runtime === "object" &&
-          "Mat" in runtime && "imread" in runtime) {
-        return runtime as CV;
-      }
-    }
+  // Import a local bridge instead of dynamically importing OpenCV directly.
+  // OpenCV's ESM namespace can expose a callable `then` property, which
+  // causes the dynamic import promise to reject during thenable assimilation.
+  const { openCv } = await import("./opencv-bridge");
+  const candidate: unknown = openCv;
+  if (candidate && typeof candidate === "object" &&
+      "Mat" in candidate && "imread" in candidate) {
+    return candidate as CV;
   }
-
   throw new Error("The browser could not initialize the PDF alignment engine.");
 }
 
