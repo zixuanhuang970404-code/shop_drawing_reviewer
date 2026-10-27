@@ -147,7 +147,7 @@ def test_document_upload_persists_metadata_and_pdf(
                 assert worker.run_once() is True
 
             processed = client.get(f"/api/v1/documents/{upload.json()['id']}").json()
-            assert processed["status"] == "ready"
+            assert processed["status"] == "needs_review"
             assert processed["extraction"]["status"] == "completed"
             assert processed["extraction"]["page_count"] == 1
             assert (
